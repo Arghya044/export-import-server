@@ -50,7 +50,47 @@ async function run() {
       }
     });
 
+    app.get('/products/latest', async (req, res) => {
+      try {
+        const products = await productsCollection.find().sort({ createdAt: -1 }).limit(6).toArray();
+        res.send(products);
+      } catch (error) {
+        res.status(500).send({ message: 'Error fetching latest products', error: error.message });
+      }
+    });
+
     
+    app.get('/products/:id', async (req, res) => {
+      try {
+        const id = req.params.id;
+        const query = { _id: new ObjectId(id) };
+        const product = await productsCollection.findOne(query);
+        res.send(product);
+      } catch (error) {
+        res.status(500).send({ message: 'Error fetching product details', error: error.message });
+      }
+    });
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
     // ============= ROUTES END =============
 
