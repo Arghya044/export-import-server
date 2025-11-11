@@ -1,5 +1,10 @@
-const { MongoClient, ServerApiVersion } = require('mongodb');
-const uri = "mongodb+srv://exportimporthub:kRPWDjug3t9svw4A@exportimporthub.wvsso0s.mongodb.net/?appName=exportimporthub";
+const express = require('express');
+const cors = require('cors');
+const { MongoClient, ServerApiVersion, ObjectId } = require('mongodb');
+require('dotenv').config();
+
+const app = express();
+const port = process.env.PORT || 5000;
 
 // Create a MongoClient with a MongoClientOptions object to set the Stable API version
 const client = new MongoClient(uri, {
