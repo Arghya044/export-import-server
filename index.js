@@ -70,7 +70,82 @@ async function run() {
         res.status(500).send({ message: 'Error fetching product details', error: error.message });
       }
     });
+     
+app.get('/products/search/:name', async (req, res) => {
+  try {
+    const database = await connectDB();
+    const productsCollection = database.collection('products');
+    const searchName = req.params.name;
+    const query = { productName: { $regex: searchName, $options: 'i' } };
+    const products = await productsCollection.find(query).toArray();
+    res.json(products);
+  } catch (error) {
+    console.error('Error in /products/search:', error);
+    res.status(500).json({ message: 'Error searching products', error: error.message });
+  }
+});
+ 
 
+    app.post('/products', async (req, res) => {
+  try {
+    const database = await connectDB();
+    const productsCollection = database.collection('products');
+    const newProduct = req.body;
+    newProduct.createdAt = new Date();
+    const result = await productsCollection.insertOne(newProduct);
+    res.json(result);
+  } catch (error) {
+    console.error('Error in POST /products:', error);
+    res.status(500).json({ message: 'Error adding product', error: error.message });
+  }
+});
+
+
+app.get('/my-exports/:email', async (req, res) => {
+  try {
+    const database = await connectDB();
+    const productsCollection = database.collection('products');
+    const email = req.params.email;
+    const query = { userEmail: email };
+    const products = await productsCollection.find(query).sort({ createdAt: -1 }).toArray();
+    res.json(products);
+  } catch (error) {
+    console.error('Error in /my-exports:', error);
+    res.status(500).json({ message: 'Error fetching user exports', error: error.message });
+  }
+});
+
+
+app.patch('/products/:id', async (req, res) => {
+  try {
+    const database = await connectDB();
+    const productsCollection = database.collection('products');
+    const id = req.params.id;
+    const updatedData = req.body;
+    const filter = { _id: new ObjectId(id) };
+    const updateDoc = {
+      $set: updatedData
+    };
+    const result = await productsCollection.updateOne(filter, updateDoc);
+    res.json(result);
+  } catch (error) {
+    console.error('Error in PATCH /products:', error);
+    res.status(500).json({ message: 'Error updating product', error: error.message });
+  }
+});
+app.delete('/products/:id', async (req, res) => {
+  try {
+    const database = await connectDB();
+    const productsCollection = database.collection('products');
+    const id = req.params.id;
+    const query = { _id: new ObjectId(id) };
+    const result = await productsCollection.deleteOne(query);
+    res.json(result);
+  } catch (error) {
+    console.error('Error in DELETE /products:', error);
+    res.status(500).json({ message: 'Error deleting product', error: error.message });
+  }
+});
 
 
 
