@@ -6,13 +6,18 @@ require('dotenv').config();
 const app = express();
 const port = process.env.PORT || 5000;
 
+
 app.use(cors());
 app.use(express.json());
 
+
 const uri = process.env.MONGODB_URI;
 
+if (!uri) {
+  console.error('MONGODB_URI is not defined in environment variables');
+}
 
-// Create a MongoClient with a MongoClientOptions object to set the Stable API version
+
 const client = new MongoClient(uri, {
   serverApi: {
     version: ServerApiVersion.v1,
@@ -21,56 +26,85 @@ const client = new MongoClient(uri, {
   }
 });
 
-async function run() {
+let db;
+
+async function connectDB() {
   try {
-    // Connect the client to the server
-    await client.connect();
-    console.log("Successfully connected to MongoDB!");
+    if (!db) {
+      await client.connect();
+      db = client.db(process.env.DB_NAME);
+      console.log("Successfully connected to MongoDB!");
+    }
+    return db;
+  } catch (error) {
+    console.error('MongoDB connection error:', error);
+    throw error;
+  }
+}
 
-    // Database and Collections
-    const db = client.db(process.env.DB_NAME);
-    const productsCollection = db.collection('products');
-    const importsCollection = db.collection('imports');
-    const usersCollection = db.collection('users');
 
-    // ============= ROUTES START =============
 
-    // Root Route
-    app.get('/', (req, res) => {
-      res.send('Import Export Hub Server is Running');
-    });
 
-    // Get all products (sorted by latest first)
-    app.get('/products', async (req, res) => {
-      try {
-        const products = await productsCollection.find().sort({ createdAt: -1 }).toArray();
-        res.send(products);
-      } catch (error) {
-        res.status(500).send({ message: 'Error fetching products', error: error.message });
-      }
-    });
+app.get('/', (req, res) => {
+  res.json({ 
+    message: 'Import Export Hub Server is Running',
+    status: 'OK',
+    timestamp: new Date().toISOString()
+  });
+});
 
-    app.get('/products/latest', async (req, res) => {
-      try {
-        const products = await productsCollection.find().sort({ createdAt: -1 }).limit(6).toArray();
-        res.send(products);
-      } catch (error) {
-        res.status(500).send({ message: 'Error fetching latest products', error: error.message });
-      }
-    });
 
+app.get('/health', (req, res) => {
+  res.json({ status: 'healthy', timestamp: new Date().toISOString() });
+});
+
+
+app.get('/products', async (req, res) => {
+  try {
+    const database = await connectDB();
+    const productsCollection = database.collection('products');
+    const products = await productsCollection.find().sort({ createdAt: -1 }).toArray();
+    res.json(products);
+  } catch (error) {
+    console.error('Error in /products:', error);
+    res.status(500).json({ message: 'Error fetching products', error: error.message });
+  }
+});
+
+
+app.get('/products/latest', async (req, res) => {
+  try {
+    const database = await connectDB();
+    const productsCollection = database.collection('products');
+    const products = await productsCollection.find().sort({ createdAt: -1 }).limit(6).toArray();
+    res.json(products);
+  } catch (error) {
+    console.error('Error in /products/latest:', error);
+    res.status(500).json({ message: 'Error fetching latest products', error: error.message });
+  }
+});
+
+
+app.get('/products/:id', async (req, res) => {
+  try {
+    const database = await connectDB();
+    const productsCollection = database.collection('products');
+    const id = req.params.id;
+    const query = { _id: new ObjectId(id) };
+    const product = await productsCollection.findOne(query);
     
-    app.get('/products/:id', async (req, res) => {
-      try {
-        const id = req.params.id;
-        const query = { _id: new ObjectId(id) };
-        const product = await productsCollection.findOne(query);
-        res.send(product);
-      } catch (error) {
-        res.status(500).send({ message: 'Error fetching product details', error: error.message });
-      }
-    });
-     
+    if (!product) {
+      return res.status(404).json({ message: 'Product not found' });
+    }
+    
+    res.json(product);
+  } catch (error) {
+    console.error('Error in /products/:id:', error);
+    res.status(500).json({ message: 'Error fetching product details', error: error.message });
+  }
+});
+
+
 app.get('/products/search/:name', async (req, res) => {
   try {
     const database = await connectDB();
@@ -84,9 +118,9 @@ app.get('/products/search/:name', async (req, res) => {
     res.status(500).json({ message: 'Error searching products', error: error.message });
   }
 });
- 
 
-    app.post('/products', async (req, res) => {
+
+app.post('/products', async (req, res) => {
   try {
     const database = await connectDB();
     const productsCollection = database.collection('products');
@@ -133,6 +167,8 @@ app.patch('/products/:id', async (req, res) => {
     res.status(500).json({ message: 'Error updating product', error: error.message });
   }
 });
+
+
 app.delete('/products/:id', async (req, res) => {
   try {
     const database = await connectDB();
@@ -146,6 +182,7 @@ app.delete('/products/:id', async (req, res) => {
     res.status(500).json({ message: 'Error deleting product', error: error.message });
   }
 });
+
 
 app.post('/imports', async (req, res) => {
   try {
@@ -172,62 +209,76 @@ app.post('/imports', async (req, res) => {
     res.status(500).json({ message: 'Error importing product', error: error.message });
   }
 });
+
+
 app.get('/my-imports/:email', async (req, res) => {
-      try {
-        const email = req.params.email;
-        const query = { userEmail: email };
-        const imports = await importsCollection.find(query).sort({ importedAt: -1 }).toArray();
-        res.send(imports);
-      } catch (error) {
-        res.status(500).send({ message: 'Error fetching user imports', error: error.message });
-      }
-    });
-
-    
-    app.delete('/imports/:id', async (req, res) => {
-      try {
-        const id = req.params.id;
-        const query = { _id: new ObjectId(id) };
-        const result = await importsCollection.deleteOne(query);
-        res.send(result);
-      } catch (error) {
-        res.status(500).send({ message: 'Error deleting import', error: error.message });
-      }
-    });
-
-
- app.post('/users', async (req, res) => {
-      try {
-        const user = req.body;
-        const query = { email: user.email };
-        const existingUser = await usersCollection.findOne(query);
-        
-        if (existingUser) {
-          return res.send({ message: 'User already exists', insertedId: null });
-        }
-
-        const result = await usersCollection.insertOne(user);
-        res.send(result);
-      } catch (error) {
-        res.status(500).send({ message: 'Error saving user', error: error.message });
-      }
-    });
-    
-    // ============= ROUTES END =============
-
-    // Send a ping to confirm a successful connection
-    await client.db("admin").command({ ping: 1 });
-    console.log("Pinged your deployment. You successfully connected to MongoDB!");
-
+  try {
+    const database = await connectDB();
+    const importsCollection = database.collection('imports');
+    const email = req.params.email;
+    const query = { userEmail: email };
+    const imports = await importsCollection.find(query).sort({ importedAt: -1 }).toArray();
+    res.json(imports);
   } catch (error) {
-    console.error('MongoDB connection error:', error);
+    console.error('Error in /my-imports:', error);
+    res.status(500).json({ message: 'Error fetching user imports', error: error.message });
   }
+});
+
+
+app.delete('/imports/:id', async (req, res) => {
+  try {
+    const database = await connectDB();
+    const importsCollection = database.collection('imports');
+    const id = req.params.id;
+    const query = { _id: new ObjectId(id) };
+    const result = await importsCollection.deleteOne(query);
+    res.json(result);
+  } catch (error) {
+    console.error('Error in DELETE /imports:', error);
+    res.status(500).json({ message: 'Error deleting import', error: error.message });
+  }
+});
+
+
+app.post('/users', async (req, res) => {
+  try {
+    const database = await connectDB();
+    const usersCollection = database.collection('users');
+    const user = req.body;
+    const query = { email: user.email };
+    const existingUser = await usersCollection.findOne(query);
+    
+    if (existingUser) {
+      return res.json({ message: 'User already exists', insertedId: null });
+    }
+
+    const result = await usersCollection.insertOne(user);
+    res.json(result);
+  } catch (error) {
+    console.error('Error in POST /users:', error);
+    res.status(500).json({ message: 'Error saving user', error: error.message });
+  }
+});
+
+
+
+
+app.use((req, res) => {
+  res.status(404).json({ message: 'Route not found' });
+});
+
+
+app.use((err, req, res, next) => {
+  console.error('Global error handler:', err);
+  res.status(500).json({ message: 'Internal server error', error: err.message });
+});
+
+
+if (process.env.NODE_ENV !== 'production') {
+  app.listen(port, () => {
+    console.log(`Import Export Hub Server is running on port ${port}`);
+  });
 }
 
-
-run().catch(console.dir);
-
-
-app.listen(port, () => {
-  console.log(`Import Export Hub Server is running on port ${port}`);
-});
+module.exports = app;
