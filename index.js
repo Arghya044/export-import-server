@@ -172,26 +172,47 @@ app.post('/imports', async (req, res) => {
     res.status(500).json({ message: 'Error importing product', error: error.message });
   }
 });
+app.get('/my-imports/:email', async (req, res) => {
+      try {
+        const email = req.params.email;
+        const query = { userEmail: email };
+        const imports = await importsCollection.find(query).sort({ importedAt: -1 }).toArray();
+        res.send(imports);
+      } catch (error) {
+        res.status(500).send({ message: 'Error fetching user imports', error: error.message });
+      }
+    });
+
+    
+    app.delete('/imports/:id', async (req, res) => {
+      try {
+        const id = req.params.id;
+        const query = { _id: new ObjectId(id) };
+        const result = await importsCollection.deleteOne(query);
+        res.send(result);
+      } catch (error) {
+        res.status(500).send({ message: 'Error deleting import', error: error.message });
+      }
+    });
 
 
+ app.post('/users', async (req, res) => {
+      try {
+        const user = req.body;
+        const query = { email: user.email };
+        const existingUser = await usersCollection.findOne(query);
+        
+        if (existingUser) {
+          return res.send({ message: 'User already exists', insertedId: null });
+        }
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+        const result = await usersCollection.insertOne(user);
+        res.send(result);
+      } catch (error) {
+        res.status(500).send({ message: 'Error saving user', error: error.message });
+      }
+    });
+    
     // ============= ROUTES END =============
 
     // Send a ping to confirm a successful connection
