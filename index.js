@@ -147,6 +147,31 @@ app.delete('/products/:id', async (req, res) => {
   }
 });
 
+app.post('/imports', async (req, res) => {
+  try {
+    const database = await connectDB();
+    const importsCollection = database.collection('imports');
+    const productsCollection = database.collection('products');
+    
+    const importData = req.body;
+    importData.importedAt = new Date();
+    
+   
+    const result = await importsCollection.insertOne(importData);
+
+    
+    const filter = { _id: new ObjectId(importData.productId) };
+    const updateDoc = {
+      $inc: { availableQuantity: -importData.importedQuantity }
+    };
+    await productsCollection.updateOne(filter, updateDoc);
+
+    res.json(result);
+  } catch (error) {
+    console.error('Error in POST /imports:', error);
+    res.status(500).json({ message: 'Error importing product', error: error.message });
+  }
+});
 
 
 
